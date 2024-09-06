@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rock-Paper-Scissors Classifier</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #f0f4f8;
+            font-family: Arial, sans-serif;
+        }
+        #video-container, #ai-container {
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+            background-color: #ffffff;
+            height: 100%;
+        }
+        #video {
+            border-radius: 8px;
+        }
+        #capture-btn {
+            border-radius: 20px;
+            padding: 10px 30px;
+            font-size: 16px;
+        }
+        #loading {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 80px;
+        }
+        #loading .spinner-border {
+            margin-right: 10px;
+        }
+        #ai-image {
+            display: none;
+            width: 100%;
+        }
+        .container {
+            height: 100vh;
+        }
+        .half-screen {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .half-screen h3 {
+            font-weight: bold;
+            color: #343a40;
+        }
+        #user-choice {
+            font-weight: bold;
+            font-size: 20px;
+            margin-top: 20px;
+            color: #343a40;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid h-100">
+        <div class="row h-100">
+            <!-- Left side: Camera and Capture Button -->
+            <div class="col-md-6 d-flex flex-column justify-content-center align-items-center half-screen" id="video-container">
+                <video id="video" width="100%" height="auto" autoplay></video>
+                <button id="capture-btn" class="btn btn-primary mt-4" onclick="captureImage()">Capture Image</button>
+                <canvas id="canvas" style="display:none;"></canvas>
+
+                <!-- Display user's predicted choice -->
+                <div id="user-choice">Your choice: </div>
+
+                <!-- Loading Spinner -->
+                <div id="loading" class="mt-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                    <p>Processing your move...</p>
+                </div>
+            </div>
+
+            <!-- Right side: AI choice visual -->
+            <div class="col-md-6 d-flex flex-column justify-content-center align-items-center half-screen" id="ai-container">
+                <h3>AI Choice:</h3>
+                <img id="ai-image" src="" alt="AI Choice Image" class="img-fluid">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Access the user's camera
+        const video = document.getElementById('video');
+        const captureBtn = document.getElementById('capture-btn');
+        const loadingIndicator = document.getElementById('loading');
+        const aiImage = document.getElementById('ai-image');
+        const userChoiceElement = document.getElementById('user-choice');
+
+        // Choices for the AI (rock, paper, scissors)
+        const aiChoices = ['rock', 'paper', 'scissors'];
+
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: true }).then(function (stream) {
+                video.srcObject = stream;
+                video.play();
+            });
+        }
+
+        function captureImage() {
+            const canvas = document.getElementById('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            // Draw the current video frame onto the canvas
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Stop video recording
+            video.pause();
+            captureBtn.disabled = true; // Disable the button
+
+            // Show loading indicator
+            loadingIndicator.style.display = 'block';
+
+            // Convert canvas image to Blob
+            canvas.toBlob(function (blob) {
+                // Create a FormData object and append the image blob
+                const formData = new FormData();
+                formData.append('file', blob, 'captured-image.png');
+
+                // Send the image to the Flask backend for prediction
+                fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Display the user's predicted choice
+                    if (data.prediction) {
+                        userChoiceElement.innerText = `Your choice: ${data.prediction}`;
+
+                        // AI randomly selects rock, paper, or scissors
+                        const aiChoice = aiChoices[Math.floor(Math.random() * aiChoices.length)];
+
+                        // Display AI's choice image
+                        aiImage.src = `/static/${aiChoice}.png`;  // Set the AI choice image source
+                        aiImage.style.display = 'block';  // Show the image
+                    } else if (data.error) {
+                        userChoiceElement.innerText = `Error: ${data.error}`;
+                    }
+
+                    // Hide loading indicator
+                    loadingIndicator.style.display = 'none';
+
+                    // Re-enable the button and resume the video
+                    captureBtn.disabled = false;
+                    video.play();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred during the prediction.');
+
+                    // Hide loading indicator
+                    loadingIndicator.style.display = 'none';
+
+                    // Re-enable the button and resume the video
+                    captureBtn.disabled = false;
+                    video.play();
+                });
+            });
+        }
+    </script>
+</body>
+</html>

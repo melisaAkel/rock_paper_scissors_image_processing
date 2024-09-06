@@ -1,0 +1,4 @@
+static/
+.idea/
+__pycache__/
+rock_paper_scissors_classifier.h5
